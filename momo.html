@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thanh toán MoMo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .payment-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 400px;
+            text-align: center;
+        }
+        .payment-container h2 {
+            margin-bottom: 20px;
+        }
+        .payment-container label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .payment-container input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .payment-container button {
+            background-color: #e91e63;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .payment-container button:hover {
+            background-color: #c2185b;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="payment-container">
+        <h2>Thanh toán MoMo</h2>
+        <form id="paymentForm">
+            <label for="bookingId">ID Đặt vé:</label>
+            <input type="number" id="bookingId" name="bookingId" value="48" required readonly>
+
+            <label for="cinemaId">ID Rạp:</label>
+            <input type="number" id="cinemaId" name="cinemaId" value="9" required readonly>
+
+            <label for="userId">ID Người dùng:</label>
+            <input type="number" id="userId" name="userId" value="86" required readonly>
+
+            <label for="amount">Số tiền (VND):</label>
+            <input type="number" id="amount" name="amount" min="1000" required>
+
+            <label for="orderInfo">Thông tin đơn hàng:</label>
+            <input type="text" id="orderInfo" name="orderInfo" value="Thanh toán vé xem phim" required>
+
+            <button type="submit">Thanh toán với MoMo</button>
+        </form>
+        <div id="errorMessage" class="error"></div>
+    </div>
+
+    <script>
+        // Hàm lấy JWT token từ localStorage hoặc hệ thống xác thực
+        function getJwtToken() {
+            // Thay bằng logic thực tế để lấy token, ví dụ từ localStorage
+            return localStorage.getItem('jwtToken') || '<your-jwt-token>'; // Thay bằng token thực
+        }
+
+        document.getElementById('paymentForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.style.display = 'none';
+
+            const bookingId = document.getElementById('bookingId').value;
+            const cinemaId = document.getElementById('cinemaId').value;
+            const userId = document.getElementById('userId').value;
+            const amount = parseInt(document.getElementById('amount').value);
+            const orderInfo = document.getElementById('orderInfo').value;
+
+            // Client-side validation
+            if (!bookingId || !cinemaId || !userId) {
+                errorMessage.textContent = 'Vui lòng cung cấp đầy đủ ID đặt vé, rạp và người dùng';
+                errorMessage.style.display = 'block';
+                return;
+            }
+            if (isNaN(amount) || amount < 1000) {
+                errorMessage.textContent = 'Số tiền phải lớn hơn hoặc bằng 1000 VND';
+                errorMessage.style.display = 'block';
+                return;
+            }
+            if (!orderInfo.trim()) {
+                errorMessage.textContent = 'Thông tin đơn hàng không được để trống';
+                errorMessage.style.display = 'block';
+                return;
+            }
+
+            const formData = {
+                bookingId,
+                cinemaId,
+                userId,
+                amount,
+                orderInfo
+            };
+
+            try {
+                const token = getJwtToken();
+                if (!token || token === '<your-jwt-token>') {
+                    throw new Error('Vui lòng đăng nhập để lấy token xác thực');
+                }
+
+                const response = await fetch('http://localhost:8080/api/payments/momo', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    // Redirect đến URL thanh toán MoMo
+                    window.location.href = result.data.payUrl;
+                } else {
+                    errorMessage.textContent = result.message || 'Lỗi thanh toán không xác định';
+                    errorMessage.style.display = 'block';
+                }
+            } catch (error) {
+                errorMessage.textContent = 'Lỗi hệ thống: ' + error.message;
+                errorMessage.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

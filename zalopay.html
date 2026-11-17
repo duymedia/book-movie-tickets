@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thanh toán PayPal</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input, button {
+            padding: 8px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #0070ba;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #005ea6;
+        }
+        #response {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            display: none;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <h2>Thanh toán PayPal</h2>
+    <div class="form-group">
+        <label for="orderId">Order ID:</label>
+        <input type="number" id="orderId" placeholder="Nhập Order ID (e.g., 49)" value="49">
+    </div>
+    <div class="form-group">
+        <label for="paymentId">Payment ID:</label>
+        <input type="number" id="paymentId" placeholder="Nhập Payment ID (e.g., 14)" value="14">
+    </div>
+    <div class="form-group">
+        <label for="token">JWT Token:</label>
+        <input type="text" id="token" placeholder="Nhập Bearer Token">
+    </div>
+    <button onclick="initiatePayment()">Khởi tạo thanh toán PayPal</button>
+    <div id="response"></div>
+
+    <script>
+        async function initiatePayment() {
+            const orderId = document.getElementById('orderId').value;
+            const paymentId = document.getElementById('paymentId').value;
+            const token = document.getElementById('token').value;
+            const responseDiv = document.getElementById('response');
+
+            if (!orderId || !paymentId || !token) {
+                showResponse('Vui lòng nhập đầy đủ Order ID, Payment ID và Token.', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`http://localhost:8080/api/payments?orders=${orderId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        id: parseInt(paymentId),
+                        paymentMethod: 'PayPal'
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showResponse(`Khởi tạo thanh toán thành công! Chuyển hướng tới: <a href="${result.data.paymentUrl}" target="_blank">PayPal</a>`, 'success');
+                    // Tự động chuyển hướng tới paymentUrl
+                    setTimeout(() => {
+                        window.location.href = result.data.paymentUrl;
+                    }, 2000);
+                } else {
+                    showResponse(`Lỗi: ${result.message || 'Không thể khởi tạo thanh toán'}`, 'error');
+                }
+            } catch (error) {
+                showResponse(`Lỗi hệ thống: ${error.message}`, 'error');
+            }
+        }
+
+        function showResponse(message, type) {
+            const responseDiv = document.getElementById('response');
+            responseDiv.style.display = 'block';
+            responseDiv.innerHTML = message;
+            responseDiv.className = type;
+        }
+
+        // Xử lý callback từ PayPal (nếu cần hiển thị trên frontend)
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('paymentId') && urlParams.has('PayerID') && urlParams.has('orderId')) {
+                const paymentId = urlParams.get('paymentId');
+                const payerId = urlParams.get('PayerID');
+                const orderId = urlParams.get('orderId');
+                handlePayPalSuccess(paymentId, payerId, orderId);
+            } else if (urlParams.has('orderId') && window.location.pathname.includes('/cancel')) {
+                const orderId = urlParams.get('orderId');
+                handlePayPalCancel(orderId);
+            }
+        };
+
+        async function handlePayPalSuccess(paymentId, payerId, orderId) {
+            const token = document.getElementById('token').value || localStorage.getItem('jwtToken');
+            try {
+                const response = await fetch('http://localhost:8080/api/payments/paypal/success', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        paymentId: paymentId,
+                        PayerID: payerId,
+                        orderId: parseInt(orderId)
+                    })
+                });
+
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    showResponse(result.message, 'success');
+                } else {
+                    showResponse(`Lỗi: ${result.message || 'Không thể xử lý thanh toán'}`, 'error');
+                }
+            } catch (error) {
+                showResponse(`Lỗi hệ thống: ${error.message}`, 'error');
+            }
+        }
+
+        async function handlePayPalCancel(orderId) {
+            const token = document.getElementById('token').value || localStorage.getItem('jwtToken');
+            try {
+                const response = await fetch('http://localhost:8080/api/payments/paypal/cancel', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        orderId: parseInt(orderId)
+                    })
+                });
+
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    showResponse(result.message, 'success');
+                } else {
+                    showResponse(`Lỗi: ${result.message || 'Không thể hủy thanh toán'}`, 'error');
+                }
+            } catch (error) {
+                showResponse(`Lỗi hệ thống: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
